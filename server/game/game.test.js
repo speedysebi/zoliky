@@ -321,3 +321,117 @@ describe('closing card', () => {
     expect(game.roundResult.winnerId).toBe(p.id);
   });
 });
+
+function winRound(game) { // force current player to go out legitimately
+  const p = cur(game);
+  game.laps[p.id] = 99;
+  p.melded = true;
+  if (!game.hasDrawn) game.draw(p.id, 'deck');
+  p.hand = [card('H', 5, 'w'), card('H', 6, 'w'), card('H', 7, 'w'), card('S', 2, 'w')];
+  game.meld(p.id, [['H5-w', 'H6-w', 'H7-w']]);
+  game.discard(p.id, 'S2-w');
+  return p;
+}
+
+describe('round end and scoring', () => {
+  it('scores losers hands as penalties; winner gains nothing; jokers=50', () => {
+    const { game } = startPlaying(3);
+    const winner = cur(game);
+    const losers = game.players.filter(p => p.id !== winner.id);
+    losers[0].hand = [card('S', 13, 'l1'), card('D', 5, 'l2')]; // 10 + 5 = 15
+    losers[1].hand = [jok(5), card('H', 2, 'l3')];              // 50 + 2 = 52
+    winRound(game);
+    expect(game.phase).toBe('roundEnd');
+    expect(game.roundResult.winnerId).toBe(winner.id);
+    expect(game.roundResult.penalties[losers[0].id]).toBe(15);
+    expect(game.roundResult.penalties[losers[1].id]).toBe(52);
+    expect(losers[0].score).toBe(15);
+    expect(losers[1].score).toBe(52);
+    expect(winner.score).toBe(0);
+    expect(game.pendingCarryover[losers[1].id]).toBe(1);
+  });
+  it('nextRound rotates the dealer and goes to cutting when no jokers remain', () => {
+    const { game } = startPlaying(3);
+    for (const p of game.players) if (p.id !== cur(game).id) p.hand = [card('S', 5, `x${p.id}`)];
+    winRound(game);
+    expect(game.pendingCarryover).toBeNull();
+    const prevDealer = game.dealerIndex;
+    game.nextRound(game.hostId);
+    expect(game.dealerIndex).toBe((prevDealer + 1) % 3);
+    expect(game.roundNumber).toBe(2);
+    expect(game.phase).toBe('cutting');
+  });
+  it('goes to carryover review when jokers remain; dealer can adjust and confirm', () => {
+    const { game } = startPlaying(3);
+    const others = game.players.filter(p => p.id !== cur(game).id);
+    others[0].hand = [jok(4), jok(5)];
+    others[1].hand = [card('S', 5, 'q')];
+    winRound(game);
+    game.nextRound(game.hostId);
+    expect(game.phase).toBe('carryover');
+    const dealer = game.players[game.dealerIndex];
+    // reassign one joker to the other loser
+    expect(() => game.adjustCarryover(dealer.id, { [others[0].id]: 1 })).toThrow(); // total mismatch
+    game.adjustCarryover(dealer.id, { [others[0].id]: 1, [others[1].id]: 1 });
+    game.confirmCarryover(dealer.id);
+    expect(game.phase).toBe('cutting');
+    game.cutDeck(game.cutterId, 25);
+    // both players got exactly their assigned jokers, hand sizes normal
+    const j0 = game.players.find(p => p.id === others[0].id);
+    const j1 = game.players.find(p => p.id === others[1].id);
+    expect(j0.hand.filter(c => c.joker).length).toBeGreaterThanOrEqual(1);
+    expect(j1.hand.filter(c => c.joker).length).toBeGreaterThanOrEqual(1);
+    const first = game.players[(game.dealerIndex + 1) % 3];
+    for (const p of game.players) expect(p.hand).toHaveLength(p === first ? 15 : 14);
+  });
+  it('only the host can end the match; final phase is matchEnd', () => {
+    const { game, ids } = startPlaying(2);
+    expect(() => game.endMatch(ids[1])).toThrow();
+    game.endMatch(game.hostId);
+    expect(game.phase).toBe('matchEnd');
+  });
+});
+
+describe('getStateFor', () => {
+  it('shows own hand but never other players cards', () => {
+    const { game, ids } = startPlaying(3);
+    const state = game.getStateFor(ids[1]);
+    expect(state.hand.every(c => c.id)).toBe(true);
+    for (const p of state.players) {
+      expect(p.hand).toBeUndefined();
+      expect(typeof p.handCount).toBe('number');
+    }
+    expect(JSON.stringify(state.players)).not.toContain('"suit"');
+  });
+  it('exposes shared zones: discard top, closing card, melds, draw count', () => {
+    const { game, ids } = startPlaying(2);
+    game.discard(cur(game).id, cur(game).hand[0].id);
+    const state = game.getStateFor(ids[0]);
+    expect(state.discardTop).toBeTruthy();
+    expect(state.closingCard).toBeTruthy();
+    expect(state.drawCount).toBeGreaterThan(0);
+    expect(Array.isArray(state.melds)).toBe(true);
+    expect(state.currentPlayerId).toBe(cur(game).id);
+  });
+  it('flags turn/permission state for the viewer', () => {
+    const { game } = startPlaying(2, { meldDelayTurn: 4 });
+    const first = cur(game);
+    const s = game.getStateFor(first.id);
+    expect(s.hasDrawn).toBe(true);
+    expect(s.canMeldNow).toBe(false);
+    expect(s.lap).toBe(1);
+  });
+});
+
+describe('reconnection', () => {
+  it('reattaching by name preserves seat, hand, and score', () => {
+    const { game, ids } = startPlaying(2);
+    const p1 = game.players.find(p => p.id === ids[1]);
+    const handBefore = p1.hand.map(c => c.id);
+    game.markConnected(ids[1], false);
+    const rejoined = game.join('P1');
+    expect(rejoined).toBe(ids[1]);
+    expect(game.players.find(p => p.id === ids[1]).hand.map(c => c.id)).toEqual(handBefore);
+    expect(game.players.find(p => p.id === ids[1]).connected).toBe(true);
+  });
+});

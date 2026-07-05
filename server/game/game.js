@@ -299,8 +299,123 @@ export class Game {
   }
 
   #endRound(winner) {
-    // completed in Task 6
-    this.roundResult = { winnerId: winner.id };
+    const penalties = {};
+    const carryover = {};
+    let totalJokers = 0;
+    for (const p of this.players) {
+      if (p.id === winner.id) continue;
+      penalties[p.id] = p.hand.reduce((sum, c) => sum + cardPoints(c), 0);
+      p.score += penalties[p.id];
+      const jokers = p.hand.filter(c => c.joker).length;
+      if (jokers > 0) { carryover[p.id] = jokers; totalJokers += jokers; }
+    }
+    this.roundResult = { winnerId: winner.id, penalties };
+    this.pendingCarryover = totalJokers > 0 ? carryover : null;
     this.phase = 'roundEnd';
+  }
+
+  nextRound(playerId) {
+    if (playerId !== this.hostId) throw new Error('Only the host can start the next round');
+    if (this.phase !== 'roundEnd') throw new Error('Round is not over');
+    this.dealerIndex = (this.dealerIndex + 1) % this.players.length;
+    this.roundNumber += 1;
+    if (this.pendingCarryover) {
+      this.phase = 'carryover';
+    } else {
+      this.#startCutting();
+    }
+  }
+
+  get dealerId() { return this.players[this.dealerIndex]?.id ?? null; }
+
+  adjustCarryover(playerId, assignment) {
+    if (this.phase !== 'carryover') throw new Error('Not reviewing carryover');
+    if (playerId !== this.dealerId) throw new Error('Only the dealer adjusts joker carryover');
+    const total = Object.values(this.pendingCarryover).reduce((a, b) => a + b, 0);
+    const entries = Object.entries(assignment || {});
+    let newTotal = 0;
+    for (const [pid, count] of entries) {
+      this.player(pid);
+      if (!Number.isInteger(count) || count < 0) throw new Error('Counts must be non-negative integers');
+      newTotal += count;
+    }
+    if (newTotal !== total) throw new Error(`Carryover must assign exactly ${total} joker(s)`);
+    this.pendingCarryover = Object.fromEntries(entries.filter(([, c]) => c > 0));
+  }
+
+  confirmCarryover(playerId) {
+    if (this.phase !== 'carryover') throw new Error('Not reviewing carryover');
+    if (playerId !== this.dealerId) throw new Error('Only the dealer confirms joker carryover');
+    this.#startCutting();
+  }
+
+  endMatch(playerId) {
+    if (playerId !== this.hostId) throw new Error('Only the host can end the match');
+    if (this.phase === 'lobby' || this.phase === 'matchEnd') throw new Error('No match in progress');
+    this.phase = 'matchEnd';
+  }
+
+  getStateFor(playerId) {
+    const you = this.players.find(p => p.id === playerId) || null;
+    const currentId = this.currentIndex >= 0 ? this.players[this.currentIndex]?.id : null;
+    const isDealerViewer = playerId === this.dealerId;
+    const showCarry = this.pendingCarryover && (this.phase === 'roundEnd' || this.phase === 'carryover');
+    return {
+      phase: this.phase,
+      config: { ...this.config },
+      roundNumber: this.roundNumber,
+      youId: playerId,
+      hand: you ? you.hand.map(c => ({ ...c })) : [],
+      players: this.players.map((p, i) => ({
+        id: p.id,
+        name: p.name,
+        handCount: p.hand.length,
+        melded: p.melded,
+        score: p.score,
+        connected: p.connected,
+        isDealer: i === this.dealerIndex,
+        isCurrent: p.id === currentId && this.phase === 'playing',
+        isHost: p.id === this.hostId,
+        isCutter: this.phase === 'cutting' && p.id === this.cutterId,
+        carryJokers: showCarry ? (this.pendingCarryover[p.id] || 0) : 0
+      })),
+      drawCount: this.drawPile.length,
+      discardTop: this.discardPile.length ? { ...this.discardPile[this.discardPile.length - 1] } : null,
+      discardCount: this.discardPile.length,
+      closingCard: this.closingCard ? { ...this.closingCard } : null,
+      melds: this.melds.map(m => ({
+        id: m.id,
+        ownerId: m.ownerId,
+        ownerName: this.players.find(p => p.id === m.ownerId)?.name ?? '?',
+        cards: m.cards.map(c => ({ ...c }))
+      })),
+      currentPlayerId: this.phase === 'playing' ? currentId : null,
+      hasDrawn: this.hasDrawn,
+      canMeldNow: you ? this.canMeldNow(you.id) : false,
+      canDrawDiscard: you ? this.canMeldNow(you.id) && this.discardPile.length > 0 : false,
+      meldTurnActive: !this.config.meldDelayEnabled ||
+        Math.max(0, ...Object.values(this.laps || {})) >= this.config.meldDelayTurn,
+      lap: you ? (this.laps[you.id] || 0) : 0,
+      cutterId: this.phase === 'cutting' ? this.cutterId : null,
+      deckSize: this.phase === 'cutting' ? this.pendingDeck.length : 0,
+      roundResult: this.roundResult && (this.phase === 'roundEnd' || this.phase === 'matchEnd')
+        ? {
+            winnerId: this.roundResult.winnerId,
+            winnerName: this.players.find(p => p.id === this.roundResult.winnerId)?.name ?? '?',
+            penalties: Object.entries(this.roundResult.penalties).map(([pid, points]) => ({
+              id: pid,
+              name: this.players.find(p => p.id === pid)?.name ?? '?',
+              points
+            }))
+          }
+        : null,
+      carryover: showCarry
+        ? {
+            total: Object.values(this.pendingCarryover).reduce((a, b) => a + b, 0),
+            assignment: { ...this.pendingCarryover },
+            editable: isDealerViewer && this.phase === 'carryover'
+          }
+        : null
+    };
   }
 }
