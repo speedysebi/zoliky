@@ -1,1 +1,30 @@
-/* styles arrive with the client tasks */
+* { box-sizing: border-box; margin: 0; }
+body { font-family: system-ui, sans-serif; background: #10251a; color: #eee; }
+.app { max-width: 560px; margin: 0 auto; padding: 12px; min-height: 100vh; }
+h1 { text-align: center; margin: 16px 0; }
+button { cursor: pointer; border: none; border-radius: 8px; padding: 8px 14px;
+  background: #35543f; color: #fff; font-size: 15px; }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primary { background: #e0a231; color: #201500; font-weight: 700; width: 100%;
+  padding: 12px; margin-top: 16px; }
+input { border-radius: 8px; border: 1px solid #476b52; background: #0c1c13;
+  color: #fff; padding: 10px; font-size: 16px; }
+.join-screen { display: flex; flex-direction: column; align-items: center; padding-top: 15vh; }
+.join-screen form { display: flex; flex-direction: column; gap: 10px; width: 260px; }
+.toast { position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+  background: #a33; color: #fff; padding: 10px 16px; border-radius: 8px; z-index: 10;
+  cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+.player-list { list-style: none; padding: 0; margin: 16px 0; }
+.player-list li { padding: 10px; background: rgba(255,255,255,0.07);
+  border-radius: 8px; margin-bottom: 6px; }
+.player-list li.disconnected { opacity: 0.5; }
+.tag { font-size: 11px; background: #35543f; border-radius: 8px; padding: 2px 8px; margin-left: 8px; }
+.tag.you { background: #e0a231; color: #201500; }
+.house-rules { background: rgba(255,255,255,0.07); border-radius: 10px; padding: 14px; margin: 14px 0; }
+.rule-row { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.rule-row input[type="number"] { width: 64px; }
+.segmented button { border-radius: 0; }
+.segmented button:first-child { border-radius: 8px 0 0 8px; }
+.segmented button:last-child { border-radius: 0 8px 8px 0; }
+.segmented button.active { background: #e0a231; color: #201500; font-weight: 700; }
+.hint { color: #9db8a5; font-size: 13px; margin-top: 10px; text-align: center; }
