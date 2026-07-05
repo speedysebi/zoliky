@@ -135,4 +135,172 @@ export class Game {
     this.roundResult = null;
     this.phase = 'playing';
   }
+
+  // ---- turn helpers ----
+  #requireTurn(playerId) {
+    if (this.phase !== 'playing') throw new Error('Not in a round');
+    const p = this.player(playerId);
+    if (this.players[this.currentIndex].id !== playerId) throw new Error('Not your turn');
+    return p;
+  }
+
+  canMeldNow(playerId) {
+    if (!this.config.meldDelayEnabled) return true;
+    return (this.laps[playerId] || 0) >= this.config.meldDelayTurn;
+  }
+
+  #takeFromHand(p, cardIds) {
+    if (new Set(cardIds).size !== cardIds.length) throw new Error('Duplicate cards in move');
+    const cards = cardIds.map(id => {
+      const c = p.hand.find(c => c.id === id);
+      if (!c) throw new Error('Card not in your hand');
+      return c;
+    });
+    p.hand = p.hand.filter(c => !cards.includes(c));
+    return cards;
+  }
+
+  draw(playerId, source, plan) {
+    const p = this.#requireTurn(playerId);
+    if (this.hasDrawn) throw new Error('You already drew this turn');
+    if (source === 'deck') {
+      if (this.drawPile.length === 0) this.#recycleDiscard();
+      if (this.drawPile.length === 0) throw new Error('No cards left to draw');
+      p.hand.push(this.drawPile.shift());
+      this.hasDrawn = true;
+    } else if (source === 'discard') {
+      if (!this.canMeldNow(playerId)) throw new Error('Discard pickup is locked until the meld turn begins');
+      if (this.discardPile.length === 0) throw new Error('Discard pile is empty');
+      p.hand.push(this.discardPile.pop());
+      this.hasDrawn = true;
+    } else if (source === 'closing') {
+      this.#drawClosing(p, plan);
+    } else {
+      throw new Error('Unknown draw source');
+    }
+  }
+
+  #recycleDiscard() {
+    if (this.discardPile.length <= 1) return;
+    const top = this.discardPile.pop();
+    this.drawPile = shuffle(this.discardPile, this.rng);
+    this.discardPile = [top];
+  }
+
+  #drawClosing(p, plan) {
+    if (!this.closingCard) throw new Error('Closing card already taken');
+    if (!plan || typeof plan !== 'object') throw new Error('Taking the closing card requires going out this turn');
+    const snapshot = structuredClone({
+      hand: p.hand, melded: p.melded, melds: this.melds, closingCard: this.closingCard
+    });
+    try {
+      p.hand.push(this.closingCard);
+      this.closingCard = null;
+      this.hasDrawn = true;
+      this.#doMelds(p, plan.melds || []);
+      for (const add of plan.additions || []) {
+        this.#doAddToMeld(p, add.meldId, add.cardIds, add.where);
+      }
+      if (p.hand.length !== 1 || p.hand[0].id !== plan.discardId) {
+        throw new Error('Closing card may only be taken if you meld out and win this turn');
+      }
+    } catch (err) {
+      p.hand = snapshot.hand;
+      p.melded = snapshot.melded;
+      this.melds = snapshot.melds;
+      this.closingCard = snapshot.closingCard;
+      this.hasDrawn = false;
+      throw err;
+    }
+    this.discard(p.id, plan.discardId);
+  }
+
+  #doMelds(p, meldsCardIds) {
+    if (meldsCardIds.length === 0) return;
+    if (!this.canMeldNow(p.id)) {
+      throw new Error(`No melding until turn ${this.config.meldDelayTurn} begins`);
+    }
+    const allIds = meldsCardIds.flat();
+    if (new Set(allIds).size !== allIds.length) throw new Error('Duplicate cards in move');
+    const validated = meldsCardIds.map(ids => {
+      const cards = ids.map(id => {
+        const c = p.hand.find(c => c.id === id);
+        if (!c) throw new Error('Card not in your hand');
+        return c;
+      });
+      const result = validateMeld(cards);
+      if (!result.valid) throw new Error('Invalid meld');
+      return { cards, ...result };
+    });
+    if (!p.melded) {
+      const total = validated.reduce((sum, m) => sum + m.points, 0);
+      if (total < this.config.openingThreshold) {
+        throw new Error(`Opening requires at least ${this.config.openingThreshold} points (you laid ${total})`);
+      }
+      if (!validated.some(m => m.type === 'sequence' && m.pure)) {
+        throw new Error('Opening requires at least one pure sequence (no joker)');
+      }
+    }
+    if (allIds.length >= p.hand.length) throw new Error('You must keep a card to discard');
+    for (const m of validated) {
+      p.hand = p.hand.filter(c => !m.cards.includes(c));
+      this.melds.push({ id: `m${this.nextMeldId++}`, ownerId: p.id, cards: m.cards });
+    }
+    p.melded = true;
+  }
+
+  meld(playerId, meldsCardIds) {
+    const p = this.#requireTurn(playerId);
+    if (!this.hasDrawn) throw new Error('Draw a card first');
+    if (!Array.isArray(meldsCardIds) || meldsCardIds.length === 0) throw new Error('No melds given');
+    this.#doMelds(p, meldsCardIds);
+  }
+
+  #doAddToMeld(p, meldId, cardIds, where = 'end') {
+    if (!this.canMeldNow(p.id)) {
+      throw new Error(`No melding until turn ${this.config.meldDelayTurn} begins`);
+    }
+    if (!p.melded) throw new Error('You must open with your own meld first');
+    const meld = this.melds.find(m => m.id === meldId);
+    if (!meld) throw new Error('Unknown meld');
+    if (!Array.isArray(cardIds) || cardIds.length === 0) throw new Error('No cards given');
+    if (cardIds.length >= p.hand.length) throw new Error('You must keep a card to discard');
+    if (new Set(cardIds).size !== cardIds.length) throw new Error('Duplicate cards in move');
+    const cards = cardIds.map(id => {
+      const c = p.hand.find(c => c.id === id);
+      if (!c) throw new Error('Card not in your hand');
+      return c;
+    });
+    const arrangement = where === 'start' ? [...cards, ...meld.cards] : [...meld.cards, ...cards];
+    if (!validateMeld(arrangement).valid) throw new Error('That card does not fit this meld');
+    p.hand = p.hand.filter(c => !cards.includes(c));
+    meld.cards = arrangement;
+  }
+
+  addToMeld(playerId, meldId, cardIds, where = 'end') {
+    const p = this.#requireTurn(playerId);
+    if (!this.hasDrawn) throw new Error('Draw a card first');
+    this.#doAddToMeld(p, meldId, cardIds, where);
+  }
+
+  discard(playerId, cardId) {
+    const p = this.#requireTurn(playerId);
+    if (!this.hasDrawn) throw new Error('Draw a card first');
+    const [cardObj] = this.#takeFromHand(p, [cardId]);
+    this.discardPile.push(cardObj);
+    if (p.hand.length === 0) {
+      this.#endRound(p);
+      return;
+    }
+    this.currentIndex = (this.currentIndex + 1) % this.players.length;
+    const next = this.players[this.currentIndex];
+    this.laps[next.id] = (this.laps[next.id] || 0) + 1;
+    this.hasDrawn = false;
+  }
+
+  #endRound(winner) {
+    // completed in Task 6
+    this.roundResult = { winnerId: winner.id };
+    this.phase = 'roundEnd';
+  }
 }
