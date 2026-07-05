@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { socket } from './socket.js';
 import Lobby from './components/Lobby.jsx';
+import CutScreen from './components/CutScreen.jsx';
+import Table from './components/Table.jsx';
 
 const storage = {
   get(key) {
@@ -63,9 +65,9 @@ export default function App() {
   } else if (state.phase === 'lobby') {
     screen = <Lobby state={state} send={send} />;
   } else if (state.phase === 'cutting') {
-    screen = <div>Cut screen (coming soon)</div>;
+    screen = <CutScreen key={state.roundNumber} state={state} send={send} />;
   } else if (state.phase === 'playing') {
-    screen = <div>Table (coming soon)</div>;
+    screen = <Table state={state} send={send} />;
   } else if (state.phase === 'roundEnd') {
     screen = <div>Round end (coming soon)</div>;
   } else if (state.phase === 'carryover') {
