@@ -98,3 +98,17 @@ input { border-radius: 8px; border: 1px solid #476b52; background: #0c1c13;
 .staged .meld-cards { margin: 4px 0; }
 .cut-screen { display: flex; flex-direction: column; align-items: center; padding-top: 12vh; gap: 10px; }
 .cut-screen input[type='range'] { width: 260px; }
+
+/* ---- summary screens ---- */
+.summary-screen { display: flex; flex-direction: column; align-items: center; padding-top: 8vh; gap: 12px; }
+.winner { font-size: 20px; }
+.score-table { border-collapse: collapse; min-width: 280px; }
+.score-table th, .score-table td { padding: 8px 14px; text-align: left;
+  border-bottom: 1px solid rgba(255,255,255,0.15); }
+.you-row { background: rgba(224,162,49,0.15); }
+.summary-actions { display: flex; flex-direction: column; gap: 8px; width: 260px; }
+.carry-list { list-style: none; padding: 0; width: 280px; }
+.carry-list li { display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15); }
+.stepper { display: flex; align-items: center; gap: 10px; }
+.stepper button { width: 32px; }

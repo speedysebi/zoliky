@@ -3,6 +3,9 @@ import { socket } from './socket.js';
 import Lobby from './components/Lobby.jsx';
 import CutScreen from './components/CutScreen.jsx';
 import Table from './components/Table.jsx';
+import RoundEndSummary from './components/RoundEndSummary.jsx';
+import JokerCarryoverReview from './components/JokerCarryoverReview.jsx';
+import MatchEndSummary from './components/MatchEndSummary.jsx';
 
 const storage = {
   get(key) {
@@ -69,11 +72,11 @@ export default function App() {
   } else if (state.phase === 'playing') {
     screen = <Table state={state} send={send} />;
   } else if (state.phase === 'roundEnd') {
-    screen = <div>Round end (coming soon)</div>;
+    screen = <RoundEndSummary state={state} send={send} />;
   } else if (state.phase === 'carryover') {
-    screen = <div>Carryover (coming soon)</div>;
+    screen = <JokerCarryoverReview key={state.roundNumber} state={state} send={send} />;
   } else if (state.phase === 'matchEnd') {
-    screen = <div>Match end (coming soon)</div>;
+    screen = <MatchEndSummary state={state} />;
   }
 
   return (
