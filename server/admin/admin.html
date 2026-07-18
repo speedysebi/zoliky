@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Žolíky Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a1a; color: #eee; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; }
+    h1 { margin-bottom: 20px; color: #e0a231; }
+    .section { background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .status { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .stat { background: #0c1c13; padding: 12px; border-radius: 6px; border-left: 3px solid #e0a231; }
+    .stat-label { font-size: 12px; color: #9db8a5; }
+    .stat-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+    .player-list { list-style: none; }
+    .player-item { background: #1a1a1a; padding: 12px; margin-bottom: 8px; border-radius: 6px;
+      display: flex; justify-content: space-between; align-items: center; }
+    .player-info { flex: 1; }
+    .player-name { font-weight: 600; }
+    .player-meta { font-size: 12px; color: #9db8a5; margin-top: 4px; }
+    .player-badge { display: inline-block; font-size: 10px; background: #e0a231;
+      color: #201500; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
+    .player-actions { display: flex; gap: 8px; }
+    button { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer;
+      font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    button.primary { background: #e0a231; color: #201500; }
+    button.primary:hover { background: #f0b241; }
+    button.danger { background: #a33; color: #fff; }
+    button.danger:hover { background: #c44; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .controls { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .info { font-size: 12px; color: #9db8a5; margin-top: 8px; }
+    .error { color: #ff6b6b; margin-top: 8px; font-size: 12px; }
+    .success { color: #51cf66; margin-top: 8px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🂠 Žolíky Admin Panel</h1>
+
+    <div class="section">
+      <div class="status">
+        <div class="stat">
+          <div class="stat-label">Phase</div>
+          <div class="stat-value" id="phase">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Players</div>
+          <div class="stat-value" id="playerCount">0</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="primary" onclick="endMatch()">End Match</button>
+        <button class="danger" onclick="resetGame()">Reset Game</button>
+        <button onclick="refreshState()">Refresh</button>
+      </div>
+      <div id="message"></div>
+    </div>
+
+    <div class="section">
+      <h2 style="margin-bottom: 12px;">Connected Players</h2>
+      <ul class="player-list" id="playerList"></ul>
+      <div class="info" id="noPlayers">No players connected</div>
+    </div>
+  </div>
+
+  <script>
+    let autoRefresh = setInterval(refreshState, 2000);
+
+    async function refreshState() {
+      try {
+        const res = await fetch('/api/state');
+        const data = await res.json();
+
+        document.getElementById('phase').textContent = data.phase || '—';
+        document.getElementById('playerCount').textContent = data.players.length;
+
+        const list = document.getElementById('playerList');
+        const noPlayers = document.getElementById('noPlayers');
+
+        if (data.players.length === 0) {
+          list.innerHTML = '';
+          noPlayers.style.display = 'block';
+        } else {
+          noPlayers.style.display = 'none';
+          list.innerHTML = data.players.map(p => `
+            <li class="player-item">
+              <div class="player-info">
+                <div class="player-name">
+                  ${p.name}
+                  ${p.isHost ? '<span class="player-badge">HOST</span>' : ''}
+                  ${!p.connected ? '<span class="player-badge" style="background: #888;">OFFLINE</span>' : ''}
+                </div>
+                <div class="player-meta">
+                  ID: ${p.id} | Hand: ${p.handCount} | Score: ${p.score}
+                </div>
+              </div>
+              <div class="player-actions">
+                <button class="danger" onclick="kickPlayer('${p.id}')">Kick</button>
+              </div>
+            </li>
+          `).join('');
+        }
+      } catch (err) {
+        showMessage('Failed to fetch state', 'error');
+      }
+    }
+
+    async function endMatch() {
+      if (!confirm('End the current match?')) return;
+      try {
+        const res = await fetch('/api/end-match', { method: 'POST' });
+        if (res.ok) {
+          showMessage('Match ended', 'success');
+          refreshState();
+        } else {
+          const err = await res.json();
+          showMessage(err.error || 'Failed to end match', 'error');
+        }
+      } catch (err) {
+        showMessage('Error: ' + err.message, 'error');
+      }
+    }
+
+    async function kickPlayer(playerId) {
+      if (!confirm('Kick this player?')) return;
+      try {
+        const res = await fetch(`/api/kick-player/${playerId}`, { method: 'POST' });
+        if (res.ok) {
+          showMessage('Player kicked', 'success');
+          refreshState();
+        } else {
+          const err = await res.json();
+          showMessage(err.error || 'Failed to kick player', 'error');
+        }
+      } catch (err) {
+        showMessage('Error: ' + err.message, 'error');
+      }
+    }
+
+    async function resetGame() {
+      if (!confirm('Reset the entire game? All players will be disconnected.')) return;
+      try {
+        const res = await fetch('/api/reset', { method: 'POST' });
+        if (res.ok) {
+          showMessage('Game reset', 'success');
+          refreshState();
+        } else {
+          const err = await res.json();
+          showMessage(err.error || 'Failed to reset', 'error');
+        }
+      } catch (err) {
+        showMessage('Error: ' + err.message, 'error');
+      }
+    }
+
+    function showMessage(msg, type) {
+      const el = document.getElementById('message');
+      el.textContent = msg;
+      el.className = type;
+      setTimeout(() => { el.textContent = ''; el.className = ''; }, 3000);
+    }
+
+    // Initial load
+    refreshState();
+  </script>
+</body>
+</html>

@@ -8,6 +8,7 @@ export default function Table({ state, send }) {
   const [staged, setStaged] = useState([]); // [{ids, cards, hidden?}]
   const [goOut, setGoOut] = useState(false);
   const [goOutAdditions, setGoOutAdditions] = useState([]);
+  const [reorderedHand, setReorderedHand] = useState([]);
 
   const you = state.players.find(p => p.id === state.youId);
   const isYourTurn = state.currentPlayerId === state.youId;
@@ -16,12 +17,26 @@ export default function Table({ state, send }) {
     return [...state.players.slice(idx + 1), ...state.players.slice(0, idx)];
   }, [state.players, state.youId]);
 
+  // track hand reordering
+  const displayHand = reorderedHand.length > 0 ? reorderedHand : state.hand;
+
   const stagedIds = staged.flatMap(m => m.ids);
   // while going out, the closing card is playable as part of the plan
   const playableCards = goOut && state.closingCard
-    ? [...state.hand, state.closingCard]
-    : state.hand;
+    ? [...displayHand, state.closingCard]
+    : displayHand;
   const handCards = playableCards.filter(c => !stagedIds.includes(c.id));
+
+  const handleReorder = (draggedId, targetId) => {
+    const hand = reorderedHand.length > 0 ? reorderedHand : state.hand;
+    const dragIdx = hand.findIndex(c => c.id === draggedId);
+    const targetIdx = hand.findIndex(c => c.id === targetId);
+    if (dragIdx >= 0 && targetIdx >= 0) {
+      const newHand = [...hand];
+      [newHand[dragIdx], newHand[targetIdx]] = [newHand[targetIdx], newHand[dragIdx]];
+      setReorderedHand(newHand);
+    }
+  };
 
   const toggle = id =>
     setSelectedIds(sel => (sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id]));
@@ -119,21 +134,23 @@ export default function Table({ state, send }) {
         <div className="center-area">
           <div className="deck-stack"
             onClick={() => isYourTurn && !state.hasDrawn && send('draw', { source: 'deck' })}>
-            {state.closingCard && (
-              <div className={`peek ${cardColor(state.closingCard)}`}
-                onClick={e => {
-                  e.stopPropagation();
-                  if (isYourTurn && !state.hasDrawn) setGoOut(true);
-                }}>
-                {cardLabel(state.closingCard)}
-              </div>
-            )}
             <div className="top">DECK<br />{state.drawCount}</div>
           </div>
           <div className={`discard-card ${state.discardTop ? cardColor(state.discardTop) : 'empty'}`}
             onClick={() => isYourTurn && !state.hasDrawn && state.discardTop && send('draw', { source: 'discard' })}>
             {state.discardTop ? cardLabel(state.discardTop) : '—'}
           </div>
+          {state.closingCard && (
+            <div className="closing-card-wrapper"
+              onClick={() => {
+                if (isYourTurn && !state.hasDrawn) setGoOut(true);
+              }}>
+              <div className="closing-card-label">CLOSING</div>
+              <div className={`closing-card ${cardColor(state.closingCard)}`}>
+                {cardLabel(state.closingCard)}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -166,8 +183,8 @@ export default function Table({ state, send }) {
         </div>
       )}
 
-      <div className="label">Your hand ({handCards.length}){you?.melded ? ' · opened' : ''}</div>
-      <Hand cards={handCards} selectedIds={selectedIds} onToggle={toggle} />
+      <div className="label">Your hand ({handCards.length}){you?.melded ? ' · opened' : ''} — drag to reorder</div>
+      <Hand cards={handCards} selectedIds={selectedIds} onToggle={toggle} onReorder={handleReorder} />
 
       <div className="actions">
         <button

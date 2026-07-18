@@ -12,6 +12,7 @@ export function attachSocketHandlers(io, game) {
       try {
         const playerId = game.join(payload?.name);
         socketToPlayer.set(socket.id, playerId);
+        socket.playerId = playerId; // Store playerId on socket for admin access
         game.markConnected(playerId, true);
         if (typeof ack === 'function') ack({ ok: true, playerId });
         broadcast();
@@ -50,9 +51,16 @@ export function attachSocketHandlers(io, game) {
     socket.on('disconnect', () => {
       const playerId = socketToPlayer.get(socket.id);
       socketToPlayer.delete(socket.id);
-      if (playerId && ![...socketToPlayer.values()].includes(playerId)) {
-        game.markConnected(playerId, false);
-        broadcast();
+      if (playerId) {
+        // If host disconnects, end the match
+        if (playerId === game.hostId && game.phase !== 'lobby' && game.phase !== 'matchEnd') {
+          game.forceEndMatch();
+          broadcast();
+        } else if (![...socketToPlayer.values()].includes(playerId)) {
+          // Mark as disconnected if no other sockets for this player
+          game.markConnected(playerId, false);
+          broadcast();
+        }
       }
     });
   });

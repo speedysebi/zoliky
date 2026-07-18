@@ -53,7 +53,7 @@ input { border-radius: 8px; border: 1px solid #476b52; background: #0c1c13;
   box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 .mini-hand .mini-card:first-child { margin-left: 0; }
 .center-area { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  display: flex; align-items: center; gap: 18px; }
+  display: flex; align-items: center; gap: 24px; }
 .deck-stack { position: relative; width: 54px; height: 76px; cursor: pointer; }
 .deck-stack .peek { position: absolute; width: 54px; height: 76px; border-radius: 6px;
   background: #f4f0e4; border: 1px solid #999; top: 14px; left: 14px;
@@ -67,6 +67,14 @@ input { border-radius: 8px; border: 1px solid #476b52; background: #0c1c13;
   border: 1px solid #ccc; display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 18px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer; }
 .discard-card.empty { background: rgba(255,255,255,0.15); color: #fff; }
+.closing-card-wrapper { position: relative; display: flex; flex-direction: column;
+  align-items: center; cursor: pointer; }
+.closing-card-label { font-size: 9px; color: #e0a231; font-weight: 700;
+  margin-bottom: 2px; letter-spacing: 1px; }
+.closing-card { width: 76px; height: 54px; border-radius: 6px; background: #f4f0e4;
+  border: 2px solid #e0a231; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 18px; box-shadow: 0 0 12px rgba(224,162,49,0.6), inset 0 0 8px rgba(224,162,49,0.2);
+  transform: rotate(90deg); cursor: pointer; }
 .red { color: #c0392b; } .black { color: #222; } .joker { color: #7d3ca3; }
 .label { font-size: 12px; color: #9db8a5; margin: 10px 0 4px; }
 .melds-strip { display: flex; gap: 12px; overflow-x: auto; padding: 8px;
@@ -74,6 +82,9 @@ input { border-radius: 8px; border: 1px solid #476b52; background: #0c1c13;
 .melds-strip.empty { align-items: center; justify-content: center; color: #6d8a77; font-size: 13px; }
 .meld-group .who { font-size: 10px; color: #ccc; margin-bottom: 2px; }
 .meld-cards { display: flex; align-items: center; }
+.mc-wrapper { width: 28px; height: 40px; margin-left: -14px; display: flex;
+  align-items: center; justify-content: center; }
+.mc-wrapper:first-child { margin-left: 0; }
 .mc { width: 30px; height: 42px; border-radius: 4px; background: #f4f0e4;
   border: 1px solid #ccc; margin-left: -12px; display: flex; align-items: center;
   justify-content: center; font-size: 11px; font-weight: 600; }
@@ -81,14 +92,15 @@ input { border-radius: 8px; border: 1px solid #476b52; background: #0c1c13;
 .add-btn { width: 22px; height: 42px; padding: 0; margin: 0 2px; background: #e0a231;
   color: #201500; font-weight: 700; }
 .your-hand { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 6px; }
-.your-hand .card { position: relative; width: 46px; height: 64px; border-radius: 6px;
-  background: #f4f0e4; border: 1px solid #ccc; display: flex; align-items: center;
-  justify-content: center; font-weight: 700; font-size: 15px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2); padding: 0; }
-.your-hand .card.selected { transform: translateY(-10px); outline: 3px solid #e0a231; }
+.your-hand .card-btn { position: relative; width: 46px; height: 64px; border-radius: 6px;
+  background: transparent; border: none; padding: 0; cursor: grab;
+  transition: all 0.2s ease; }
+.your-hand .card-btn:hover { filter: drop-shadow(0 0 8px rgba(224,162,49,0.4)); }
+.your-hand .card-btn.selected { transform: translateY(-10px); filter: drop-shadow(0 0 12px rgba(224,162,49,0.8)); }
+.your-hand .card-btn.dragging { opacity: 0.5; cursor: grabbing; }
 .sel-order { position: absolute; top: -8px; right: -6px; background: #e0a231;
   color: #201500; font-size: 10px; border-radius: 50%; width: 16px; height: 16px;
-  display: flex; align-items: center; justify-content: center; }
+  display: flex; align-items: center; justify-content: center; z-index: 10; }
 .actions { display: flex; gap: 10px; justify-content: center; margin: 12px 0; }
 .primary-inline { background: #e0a231; color: #201500; font-weight: 700; }
 .go-out-banner { background: #7d3ca3; color: #fff; border-radius: 8px; padding: 8px 12px;

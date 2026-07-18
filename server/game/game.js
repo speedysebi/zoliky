@@ -355,6 +355,21 @@ export class Game {
     this.phase = 'matchEnd';
   }
 
+  forceEndMatch() {
+    // Used when host disconnects
+    if (this.phase !== 'lobby' && this.phase !== 'matchEnd') {
+      this.phase = 'matchEnd';
+    }
+  }
+
+  removePlayer(playerId) {
+    // Remove a player from the game (for admin panel)
+    const idx = this.players.findIndex(p => p.id === playerId);
+    if (idx === -1) return false;
+    this.players.splice(idx, 1);
+    return true;
+  }
+
   getStateFor(playerId) {
     const you = this.players.find(p => p.id === playerId) || null;
     const currentId = this.currentIndex >= 0 ? this.players[this.currentIndex]?.id : null;

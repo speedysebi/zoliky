@@ -1,4 +1,4 @@
-import { cardLabel, cardColor } from '../cardUtils.js';
+import { CardSVG } from '../cardUtils.jsx';
 
 export default function MeldsStrip({ melds, canAdd, onAdd }) {
   if (melds.length === 0) {
@@ -12,7 +12,9 @@ export default function MeldsStrip({ melds, canAdd, onAdd }) {
           <div className="meld-cards">
             {canAdd && <button className="add-btn" onClick={() => onAdd(meld.id, 'start')}>+</button>}
             {meld.cards.map(c => (
-              <div key={c.id} className={`mc ${cardColor(c)}`}>{cardLabel(c)}</div>
+              <div key={c.id} className="mc-wrapper">
+                <CardSVG card={c} width={28} height={40} />
+              </div>
             ))}
             {canAdd && <button className="add-btn" onClick={() => onAdd(meld.id, 'end')}>+</button>}
           </div>
