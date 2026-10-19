@@ -1,7 +1,21 @@
 import { createDeck, shuffle, cut, cardPoints } from './cards.js';
 import { validateMeld } from './melds.js';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 let nextId = 1;
+
+function createReconnectToken() {
+  return randomBytes(32).toString('base64url');
+}
+
+function matchesReconnectToken(expected, provided) {
+  if (typeof expected !== 'string' || typeof provided !== 'string') return false;
+  if (!/^[A-Za-z0-9_-]{43}$/.test(provided)) return false;
+  const expectedBytes = Buffer.from(expected, 'base64url');
+  const providedBytes = Buffer.from(provided, 'base64url');
+  return expectedBytes.length === 32 && providedBytes.length === 32 &&
+    timingSafeEqual(expectedBytes, providedBytes);
+}
 
 export class Game {
   constructor(config = {}) {
@@ -48,15 +62,29 @@ export class Game {
     return p;
   }
 
-  join(name) {
+  join(name, reconnectToken) {
     name = String(name || '').trim();
     if (!name) throw new Error('Name required');
     const existing = this.players.find(p => p.name === name);
+    if (existing) {
+      if (!matchesReconnectToken(existing.reconnectToken, reconnectToken)) {
+        throw new Error('Name is already in use. Reconnect from the browser profile that created the seat, or choose a different name.');
+      }
+      existing.connected = true;
+      return existing.id;
+    }
     if (this.phase === 'lobby') {
-      if (existing) throw new Error('Name already taken');
       if (this.players.length >= 6) throw new Error('Table is full (6 players max)');
       const id = `p${nextId++}`;
-      this.players.push({ id, name, connected: true, hand: [], melded: false, score: 0 });
+      this.players.push({
+        id,
+        name,
+        reconnectToken: createReconnectToken(),
+        connected: true,
+        hand: [],
+        melded: false,
+        score: 0
+      });
       if (!this.hostId) this.hostId = id;
       return id;
     }

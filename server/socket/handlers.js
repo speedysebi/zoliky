@@ -10,11 +10,12 @@ export function attachSocketHandlers(io, game) {
   io.on('connection', socket => {
     socket.on('join', (payload, ack) => {
       try {
-        const playerId = game.join(payload?.name);
+        const playerId = game.join(payload?.name, payload?.reconnectToken);
+        const reconnectToken = game.player(playerId).reconnectToken;
         socketToPlayer.set(socket.id, playerId);
         socket.playerId = playerId; // Store playerId on socket for admin access
         game.markConnected(playerId, true);
-        if (typeof ack === 'function') ack({ ok: true, playerId });
+        if (typeof ack === 'function') ack({ ok: true, playerId, reconnectToken });
         broadcast();
       } catch (err) {
         if (typeof ack === 'function') ack({ ok: false, error: err.message });

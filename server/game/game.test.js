@@ -44,10 +44,12 @@ describe('lobby', () => {
     expect(game.phase).toBe('cutting');
     expect(game.cutterId).toBe(b); // left of dealer (P0 deals round 1)
   });
-  it('reattaches by name after start instead of adding a seat', () => {
+  it('reattaches with its token after start instead of adding a seat', () => {
     const { game, ids } = makeGame(2);
     game.startMatch(ids[0]);
-    expect(game.join('P1')).toBe(ids[1]);
+    const reconnectToken = game.player(ids[1]).reconnectToken;
+    expect(() => game.join('P1')).toThrow(/already in use/i);
+    expect(game.join('P1', reconnectToken)).toBe(ids[1]);
     expect(() => game.join('Newcomer')).toThrow();
   });
 });
@@ -428,10 +430,22 @@ describe('reconnection', () => {
     const { game, ids } = startPlaying(2);
     const p1 = game.players.find(p => p.id === ids[1]);
     const handBefore = p1.hand.map(c => c.id);
+    const reconnectToken = p1.reconnectToken;
     game.markConnected(ids[1], false);
-    const rejoined = game.join('P1');
+    expect(() => game.join('P1')).toThrow(/already in use/i);
+    const rejoined = game.join('P1', reconnectToken);
     expect(rejoined).toBe(ids[1]);
     expect(game.players.find(p => p.id === ids[1]).hand.map(c => c.id)).toEqual(handBefore);
     expect(game.players.find(p => p.id === ids[1]).connected).toBe(true);
+  });
+
+  it('does not let a different token claim an existing seat, including in the lobby', () => {
+    const game = new Game();
+    const id = game.join('Ana');
+    const token = game.player(id).reconnectToken;
+
+    expect(() => game.join('Ana')).toThrow(/already in use/i);
+    expect(() => game.join('Ana', 'not-a-token')).toThrow(/already in use/i);
+    expect(game.join('Ana', token)).toBe(id);
   });
 });
