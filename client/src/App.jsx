@@ -30,13 +30,19 @@ export default function App() {
   const join = useCallback(joinName => {
     const trimmed = joinName.trim();
     if (!trimmed) return;
-    storage.set('zoliky-name', trimmed);
+    const savedName = storage.get('zoliky-name');
+    const reconnectToken = savedName === trimmed ? storage.get('zoliky-reconnect-token') : null;
     setName(trimmed);
     setJoining(true);
     if (!socket.connected) socket.connect();
-    socket.emit('join', { name: trimmed }, res => {
+    socket.emit('join', { name: trimmed, reconnectToken }, res => {
       setJoining(false);
-      if (res.ok) { setPlayerId(res.playerId); setError(null); }
+      if (res.ok) {
+        storage.set('zoliky-name', trimmed);
+        storage.set('zoliky-reconnect-token', res.reconnectToken);
+        setPlayerId(res.playerId);
+        setError(null);
+      }
       else setError(res.error);
     });
   }, []);
@@ -47,8 +53,9 @@ export default function App() {
     const onConnect = () => {
       const saved = storage.get('zoliky-name');
       if (saved && playerId) {
-        socket.emit('join', { name: saved }, res => {
+        socket.emit('join', { name: saved, reconnectToken: storage.get('zoliky-reconnect-token') }, res => {
           if (res.ok) setPlayerId(res.playerId);
+          else setError(res.error);
         });
       }
     };
