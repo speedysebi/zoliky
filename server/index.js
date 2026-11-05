@@ -38,6 +38,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('');
 });
 
-adminApp.listen(ADMIN_PORT, '0.0.0.0', () => {
+// The admin API has no authentication, so keep it reachable only from the host.
+adminApp.listen(ADMIN_PORT, '127.0.0.1', () => {
   console.log(`Admin panel running at http://localhost:${ADMIN_PORT}\n`);
 });

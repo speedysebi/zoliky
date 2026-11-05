@@ -80,28 +80,51 @@
         const list = document.getElementById('playerList');
         const noPlayers = document.getElementById('noPlayers');
 
+        list.replaceChildren();
         if (data.players.length === 0) {
-          list.innerHTML = '';
           noPlayers.style.display = 'block';
         } else {
           noPlayers.style.display = 'none';
-          list.innerHTML = data.players.map(p => `
-            <li class="player-item">
-              <div class="player-info">
-                <div class="player-name">
-                  ${p.name}
-                  ${p.isHost ? '<span class="player-badge">HOST</span>' : ''}
-                  ${!p.connected ? '<span class="player-badge" style="background: #888;">OFFLINE</span>' : ''}
-                </div>
-                <div class="player-meta">
-                  ID: ${p.id} | Hand: ${p.handCount} | Score: ${p.score}
-                </div>
-              </div>
-              <div class="player-actions">
-                <button class="danger" onclick="kickPlayer('${p.id}')">Kick</button>
-              </div>
-            </li>
-          `).join('');
+          for (const player of data.players) {
+            const item = document.createElement('li');
+            item.className = 'player-item';
+
+            const info = document.createElement('div');
+            info.className = 'player-info';
+
+            const name = document.createElement('div');
+            name.className = 'player-name';
+            name.textContent = player.name;
+            if (player.isHost) {
+              const badge = document.createElement('span');
+              badge.className = 'player-badge';
+              badge.textContent = 'HOST';
+              name.append(' ', badge);
+            }
+            if (!player.connected) {
+              const badge = document.createElement('span');
+              badge.className = 'player-badge';
+              badge.style.background = '#888';
+              badge.textContent = 'OFFLINE';
+              name.append(' ', badge);
+            }
+
+            const meta = document.createElement('div');
+            meta.className = 'player-meta';
+            meta.textContent = `ID: ${player.id} | Hand: ${player.handCount} | Score: ${player.score}`;
+            info.append(name, meta);
+
+            const actions = document.createElement('div');
+            actions.className = 'player-actions';
+            const kick = document.createElement('button');
+            kick.className = 'danger';
+            kick.textContent = 'Kick';
+            kick.addEventListener('click', () => kickPlayer(player.id));
+            actions.append(kick);
+
+            item.append(info, actions);
+            list.append(item);
+          }
         }
       } catch (err) {
         showMessage('Failed to fetch state', 'error');
